@@ -1,56 +1,124 @@
-# Purchase bill reader (web app)
+# Purchase Bill Reader
 
-Upload purchase bill photos or PDFs, Gemini reads them, the app checks them, you fix the red rows and download an Excel sheet. Built with Next.js for Vercel.
+Open-source GST purchase-invoice extractor for Indian small businesses.
 
-## Run it locally first (2 minutes, no Gemini key needed)
+Upload purchase bill photos or PDFs. Gemini reads them, the app checks every field against GST rules, you fix the rows marked in red, and you download a clean Excel sheet ready for your accounting software.
 
-    npm install
-    cp .env.example .env.local        (Windows: copy .env.example .env.local)
+Built with Next.js. Runs locally or on Vercel.
+
+## Features
+
+- **Reads photos and PDFs** of purchase bills, including phone photos (shrunk in the browser before upload)
+- **Extracts** supplier name and GSTIN, buyer GSTIN, invoice number and date, line items with HSN/SAC, taxable value, CGST/SGST/IGST and totals
+- **Validates** every bill:
+  - GSTIN format and checksum
+  - Missing invoice number, date, GSTIN or HSN
+  - Tax math against line items and the bill total
+  - IGST vs CGST/SGST based on supplier state and your state
+  - Buyer GSTIN mismatch
+  - Duplicate invoices
+- **Review table** where you edit any cell and the checks re-run instantly. Fields the model marked as unclear stay flagged until you edit them.
+- **Excel export**, re-validated on the server before download
+- **Stores nothing.** No database and no file storage. Data exists only in your open browser tab.
+
+## Quick start (2 minutes, no Gemini key needed)
+
+```bash
+npm install
+cp .env.example .env.local        # Windows: copy .env.example .env.local
+```
 
 Edit `.env.local`:
 
-    APP_PASSWORD=pick-a-long-passcode
-    DEMO_MODE=1
+```
+APP_PASSWORD=pick-a-long-passcode
+DEMO_MODE=1
+```
 
-Then `npm run dev` and open http://localhost:3000. Upload any 3 images. Demo mode returns three sample bills (one clean, one with problems, one duplicate) so you can see the review table and the Excel export.
+Run `npm run dev` and open http://localhost:3000. Upload any 3 images. Demo mode returns three sample bills (one clean, one with problems, one duplicate) so you can try the review table and the Excel export.
 
-For real reading, remove `DEMO_MODE`, add `GEMINI_API_KEY`, restart.
+To read real bills, remove `DEMO_MODE`, add `GEMINI_API_KEY`, and restart.
 
 ## Deploy to Vercel
 
-1. Push this folder to a GitHub repo (private).
-2. In Vercel: Add New > Project > import the repo. Framework is detected as Next.js. No build settings to change.
+1. Fork this repo, or clone it and push it to your own GitHub account.
+2. In Vercel: Add New > Project > import your repo. Framework is detected as Next.js. No build settings to change.
 3. Before deploying, add Environment Variables (Production):
    - `GEMINI_API_KEY` from https://aistudio.google.com/apikey
-   - `APP_PASSWORD` a long passcode. Anyone with the link and the passcode can use the app and spend your Gemini quota.
-   - optional `GEMINI_MODEL` (default `gemini-3.8-flash`; use a cheaper Flash-Lite model if you prefer)
-4. Deploy. Open the URL, sign in with the passcode.
+   - `APP_PASSWORD`, a long passcode. Anyone with the link and the passcode can use the app and spend your Gemini quota.
+   - Optional: `GEMINI_MODEL` (default `gemini-3.8-flash`; use a cheaper Flash-Lite model if you prefer)
+4. Deploy. Open the URL and sign in with the passcode.
 
-Command-line alternative: `npx vercel` then `npx vercel env add GEMINI_API_KEY`, `npx vercel env add APP_PASSWORD`, `npx vercel --prod`.
+Command-line alternative:
 
-## Things to know
+```bash
+npx vercel
+npx vercel env add GEMINI_API_KEY
+npx vercel env add APP_PASSWORD
+npx vercel --prod
+```
 
-- Per-file limit is about 4 MB, because Vercel rejects larger request bodies. Photos are shrunk in the browser before upload, so phone photos are fine. A PDF over 4 MB is refused with a clear message.
-- Each file is read in its own request (60 second cap). Two files are processed at a time.
-- Bills are sent to the Gemini API. This app stores nothing: no database, no file storage. Rows exist only in the open browser tab, so download the Excel before closing it.
-- Privacy of the Gemini key tier: Google has treated free-tier API content differently from paid-tier content for product improvement. For a client's invoices, use a key from a billing-enabled project and check Google's current terms.
-- The passcode is one shared secret with a short delay on wrong guesses. It is fine for a small private tool, not for a public service. Keep the URL private.
-- HEIC photos (iPhone default) may not open in some browsers. Set the camera to "Most Compatible" or share as JPEG.
+## Configuration
 
-## What it checks (same rules as the Python script)
+| Variable | Required | Description |
+|---|---|---|
+| `GEMINI_API_KEY` | Yes (unless demo mode) | Google Gemini API key |
+| `APP_PASSWORD` | Yes | Shared passcode for signing in |
+| `GEMINI_MODEL` | No | Gemini model name. Default `gemini-3.8-flash` |
+| `DEMO_MODE` | No | Set to `1` to return sample bills without calling Gemini |
 
-GSTIN format and checksum, missing invoice number/date/GSTIN/HSN, tax math against the bill total and line items, IGST vs CGST/SGST against the supplier's state and your state (enter your GSTIN at the top), buyer GSTIN mismatch, duplicate invoices. Edit any cell and the checks re-run immediately. Fields the model flagged as unclear stay flagged until you edit them.
+## Limits and notes
 
-## Files
+- **File size:** about 4 MB per file, because Vercel rejects larger request bodies. PDFs over 4 MB are refused with a clear message.
+- **Processing:** each file is read in its own request (60-second cap), two files at a time.
+- **Data handling:** bills are sent to the Gemini API for reading. The app itself stores nothing, so download the Excel before closing the tab.
+- **Gemini key tier:** Google has treated free-tier API content differently from paid-tier content for product improvement. For business invoices, use a key from a billing-enabled project and check Google's current terms.
+- **Access control:** the passcode is one shared secret with a short delay on wrong guesses. It suits a small private deployment, not a public service. Keep your URL private.
+- **iPhone photos:** HEIC images may not open in some browsers. Set the camera to "Most Compatible" or share as JPEG.
 
-- `app/page.tsx` the whole UI
-- `app/api/extract/route.ts` upload to Gemini
-- `app/api/export/route.ts` builds the Excel file (re-validates on the server)
-- `app/api/login/route.ts` passcode cookie
-- `lib/gemini.ts` prompt and Gemini call (plain REST, no SDK)
-- `lib/validate.ts`, `lib/normalize.ts`, `lib/excel.ts` checks, cleanup, workbook
-- `scripts/selftest.ts` run with `npm run selftest`
+## Project structure
 
-## Not built yet
+```
+app/
+  page.tsx               The whole UI
+  api/extract/route.ts   Sends an uploaded file to Gemini
+  api/export/route.ts    Builds the Excel file (re-validates on the server)
+  api/login/route.ts     Passcode cookie
+lib/
+  gemini.ts              Prompt and Gemini call (plain REST, no SDK)
+  validate.ts            GST checks
+  normalize.ts           Cleans up model output (dates, numbers, GSTINs)
+  excel.ts               Workbook builder
+  demo.ts                Sample bills for demo mode and tests
+  auth.ts                Passcode handling
+  types.ts               Shared types
+scripts/
+  selftest.ts            Run with `npm run selftest`
+```
 
-Import into Tally. The Excel sheet is the handoff for now.
+## Testing
+
+```bash
+npm run selftest
+```
+
+Runs the validation rules against the built-in sample bills. All sample data is synthetic. Please don't commit real invoices to this repo.
+
+## Roadmap
+
+- [ ] **Tally import:** export vouchers as Tally XML for direct import into Tally Prime
+- [ ] **GSTR-2B reconciliation:** match extracted purchases against the GSTR-2B JSON from the GST portal and flag missing or mismatched invoices
+- [ ] **Google Drive import:** read bills directly from a Drive folder
+- [ ] **Batch history:** save and reopen past batches locally in the browser
+- [ ] **CLI:** process a folder of bills from the terminal
+- [ ] **Synthetic test set:** generated invoice images and PDFs with expected outputs, plus an accuracy report
+- [ ] **Better extraction:** multi-page invoices, handwritten bills, credit and debit notes
+- [ ] **Docs:** setup guide for non-technical users and a contributor guide
+
+## Contributing
+
+Issues and pull requests are welcome. Please use only synthetic or anonymised invoices in issues, tests and screenshots.
+
+## License
+
+[MIT](LICENSE)
